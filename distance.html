@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YYTI 角色曼哈顿距离矩阵</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;700;900&display=swap">
+    <style>
+        body {
+            font-family: 'Noto Serif SC', 'STKaiti', 'KaiTi', serif;
+            background: #030712;
+            color: #e5e7eb;
+        }
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: #111827; }
+        ::-webkit-scrollbar-thumb { background: #92400e; border-radius: 4px; }
+
+        .matrix-container {
+            overflow: auto;
+            max-height: 80vh;
+            position: relative;
+        }
+        .matrix-table {
+            border-collapse: separate;
+            border-spacing: 1px;
+        }
+        .matrix-table th {
+            position: sticky;
+            background: #111827;
+            z-index: 10;
+            font-size: 0.65rem;
+            padding: 4px 2px;
+            white-space: nowrap;
+        }
+        .matrix-table thead th {
+            top: 0;
+            z-index: 20;
+        }
+        .matrix-table tbody th {
+            left: 0;
+            z-index: 15;
+            text-align: right;
+            padding-right: 6px;
+        }
+        .matrix-table td {
+            width: 32px;
+            height: 32px;
+            min-width: 32px;
+            text-align: center;
+            font-size: 0.6rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: transform 0.15s ease;
+            position: relative;
+        }
+        .matrix-table td:hover {
+            transform: scale(1.8);
+            z-index: 30;
+            box-shadow: 0 0 12px rgba(217,119,6,0.6);
+            border-radius: 4px;
+        }
+        .corner-cell {
+            position: sticky;
+            left: 0;
+            top: 0;
+            z-index: 25 !important;
+            background: #111827 !important;
+        }
+
+        /* 距离色阶 */
+        .dist-0  { background: #fbbf24; color: #1f2937; }
+        .dist-1  { background: #f59e0b; color: #1f2937; }
+        .dist-2  { background: #d97706; color: #1f2937; }
+        .dist-3  { background: #b45309; color: #fef3c7; }
+        .dist-4  { background: #92400e; color: #fef3c7; }
+        .dist-5  { background: #78350f; color: #fef3c7; }
+        .dist-6  { background: #6b3410; color: #fef3c7; }
+        .dist-7  { background: #5c2d0e; color: #fcd34d; }
+        .dist-8  { background: #4a2508; color: #fcd34d; }
+        .dist-9  { background: #3b1d06; color: #fcd34d; }
+        .dist-10 { background: #2d1604; color: #fcd34d; }
+        .dist-11 { background: #1f1003; color: #fcd34d; }
+        .dist-12 { background: #170c02; color: #d97706; }
+        .dist-high { background: #0f0801; color: #92400e; }
+
+        .pair-row:hover {
+            background: rgba(146, 64, 14, 0.15) !important;
+        }
+
+        .tab-btn {
+            transition: all 0.3s ease;
+        }
+        .tab-btn.active {
+            background: linear-gradient(135deg, #92400e, #b45309);
+            color: #fef3c7;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .fade-in { animation: fadeIn 0.5s ease-out; }
+    </style>
+</head>
+<body class="min-h-screen bg-gray-950 text-white">
+    <div class="max-w-[98vw] mx-auto px-4 py-6">
+        <!-- 标题 -->
+        <div class="text-center mb-6 fade-in">
+            <h1 class="text-3xl font-black bg-gradient-to-r from-amber-300 via-yellow-200 to-amber-400 bg-clip-text text-transparent mb-2">
+                ⚔️ YYTI 角色曼哈顿距离矩阵
+            </h1>
+            <p class="text-gray-400 text-sm">32位角色 × 15维度 · 共 <span id="total-pairs" class="text-amber-400 font-bold">496</span> 对距离</p>
+            <a href="index.html" class="inline-block mt-2 text-amber-500 text-xs hover:text-amber-300 transition-colors">← 返回测试页</a>
+        </div>
+
+        <!-- 统计概览 -->
+        <div id="stats-overview" class="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6 fade-in"></div>
+
+        <!-- 切换标签 -->
+        <div class="flex flex-wrap gap-2 mb-4 justify-center fade-in">
+            <button class="tab-btn active px-4 py-2 rounded-lg text-sm font-bold border border-gray-700" data-tab="matrix">
+                <i class="fa-solid fa-table-cells mr-1"></i>热力矩阵
+            </button>
+            <button class="tab-btn px-4 py-2 rounded-lg text-sm font-bold border border-gray-700 bg-gray-800 text-gray-300" data-tab="list">
+                <i class="fa-solid fa-list-ol mr-1"></i>距离排行
+            </button>
+            <button class="tab-btn px-4 py-2 rounded-lg text-sm font-bold border border-gray-700 bg-gray-800 text-gray-300" data-tab="danger">
+                <i class="fa-solid fa-triangle-exclamation mr-1"></i>高危混淆对
+            </button>
+        </div>
+
+        <!-- 热力矩阵视图 -->
+        <div id="view-matrix" class="fade-in">
+            <div class="bg-gray-900/80 rounded-2xl border border-gray-800 p-4 mb-4">
+                <div class="flex items-center justify-between mb-3">
+                    <h3 class="text-amber-300 font-bold text-sm"><i class="fa-solid fa-fire mr-1"></i>热力矩阵</h3>
+                    <div class="flex items-center gap-1 text-xs text-gray-500">
+                        <span>近</span>
+                        <div class="flex gap-px">
+                            <span class="w-4 h-4 rounded dist-0"></span>
+                            <span class="w-4 h-4 rounded dist-2"></span>
+                            <span class="w-4 h-4 rounded dist-4"></span>
+                            <span class="w-4 h-4 rounded dist-6"></span>
+                            <span class="w-4 h-4 rounded dist-8"></span>
+                            <span class="w-4 h-4 rounded dist-10"></span>
+                            <span class="w-4 h-4 rounded dist-12"></span>
+                            <span class="w-4 h-4 rounded dist-high"></span>
+                        </div>
+                        <span>远</span>
+                    </div>
+                </div>
+                <div class="matrix-container" id="matrix-wrapper">
+                    <table class="matrix-table" id="matrix-table"></table>
+                </div>
+            </div>
+        </div>
+
+        <!-- 距离排行视图 -->
+        <div id="view-list" class="hidden fade-in">
+            <div class="bg-gray-900/80 rounded-2xl border border-gray-800 p-4 mb-4">
+                <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
+                    <h3 class="text-amber-300 font-bold text-sm"><i class="fa-solid fa-ranking-star mr-1"></i>全部距离排行（从近到远）</h3>
+                    <div class="flex items-center gap-2">
+                        <input id="search-pair" type="text" placeholder="搜索角色名..." class="bg-gray-800 border border-gray-700 rounded-lg px-3 py-1 text-xs text-gray-300 focus:border-amber-600 focus:outline-none w-40">
+                    </div>
+                </div>
+                <div class="overflow-auto max-h-[70vh]" id="pair-list-container">
+                    <table class="w-full text-sm">
+                        <thead class="sticky top-0 bg-gray-900 z-10">
+                            <tr class="text-gray-500 text-xs">
+                                <th class="text-left py-2 px-3">#</th>
+                                <th class="text-left py-2 px-3">角色A</th>
+                                <th class="text-left py-2 px-3">角色B</th>
+                                <th class="text-center py-2 px-3">曼哈顿距离</th>
+                                <th class="text-left py-2 px-3">距离条</th>
+                                <th class="text-center py-2 px-3">风险</th>
+                            </tr>
+                        </thead>
+                        <tbody id="pair-list-body"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- 高危混淆对视图 -->
+        <div id="view-danger" class="hidden fade-in">
+            <div class="bg-gray-900/80 rounded-2xl border border-gray-800 p-4 mb-4">
+                <h3 class="text-amber-300 font-bold text-sm mb-3"><i class="fa-solid fa-triangle-exclamation mr-1"></i>高危混淆对（距离 ≤ 7）</h3>
+                <p class="text-gray-500 text-xs mb-4">以下角色对的曼哈顿距离较小，在测试中可能难以区分，需要关注。</p>
+                <div id="danger-pairs-container" class="space-y-3"></div>
+            </div>
+        </div>
+
+        <!-- 悬浮提示 -->
+        <div id="tooltip" class="fixed hidden bg-gray-800 border border-amber-700/50 rounded-xl shadow-2xl p-4 z-50 max-w-xs pointer-events-none">
+            <div id="tooltip-content"></div>
+        </div>
+
+        <!-- 页脚 -->
+        <div class="text-center mt-8 mb-4">
+            <p>由 <a href="https://with.woa.com/" style="color: #8A2BE2;" target="_blank">With</a> 通过自然语言生成</p>
+        </div>
+    </div>
+
+    <script type="module" src="distance.js"></script>
+</body>
+</html>
